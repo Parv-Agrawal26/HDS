@@ -1,0 +1,56 @@
+import cv2
+import numpy as np
+
+# Load the YOLO model for object detection
+net = cv2.dnn.readNetFromDarknet('yolov4.cfg', 'yolov4.weights')
+classes = []
+with open('coco.names', 'r') as f:
+    classes = [line.strip() for line in f.readlines()]
+output_layers = net.getUnconnectedOutLayersNames()
+
+# Create a video capture object
+cap = cv2.VideoCapture(0)
+
+# Set the screen size of the camera detecting
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+# Loop to continuously capture frames from the camera
+while True:
+    # Read a frame from the camera
+    ret, frame = cap.read()
+
+    # Convert the frame to a blob for input to the network
+    blob = cv2.dnn.blobFromImage(frame, 1/255.0, (416, 416), swapRB=True, crop=False)
+
+    # Feed the blob through the network and get the output
+    net.setInput(blob)
+    layer_outputs = net.forward(output_layers)
+
+    # Parse the output and draw boxes around the detected humans
+    humans = []
+    for output in layer_outputs:
+        for detection in output:
+            scores = detection[5:]
+            class_id = np.argmax(scores)
+            confidence = scores[class_id]
+            if class_id == 0 and confidence > 0.5:
+                center_x = int(detection[0] * frame.shape[1])
+                center_y = int(detection[1] * frame.shape[0])
+                width = int(detection[2] * frame.shape[1])
+                height = int(detection[3] * frame.shape[0])
+                x = int(center_x - width / 2)
+                y = int(center_y - height / 2)
+                humans.append([x, y, width, height])
+                cv2.rectangle(frame, (x, y), (x + width, y + height), (0, 255, 0), 2)
+
+    # Display the resulting frame
+    cv2.imshow('frame', frame)
+
+    # Check if the 'q' key was pressed to exit the program
+    if cv2.waitKey(1) == ord('q'):
+        break
+
+# Release the video capture object and close all windows
+cap.release()
+cv2.destroyAllWindows()
